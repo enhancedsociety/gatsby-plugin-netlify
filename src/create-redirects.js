@@ -21,10 +21,11 @@ export default async function writeRedirectsFile(
     `edge_handler`,
     `Language`,
     `Country`,
+    `Cookie`,
   ]
 
   // Map redirect data to the format Netlify expects
-  redirects = redirects.map(redirect => {
+  const buildRedirects = (redirects) => redirects.map(redirect => {
     const {
       fromPath,
       isPermanent,
@@ -61,6 +62,10 @@ export default async function writeRedirectsFile(
 
     return pieces.join(`  `)
   })
+
+  const postPonedRedirects = buildRedirects(redirects.filter(r => r.postpone))
+  redirects = buildRedirects(redirects.filter(r => !r.postpone))
+  redirects = redirects.concat(postPonedRedirects)
 
   rewrites = rewrites.map(
     ({ fromPath, toPath }) => `${fromPath}  ${toPath}  200`

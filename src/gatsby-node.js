@@ -9,6 +9,32 @@ import { DEFAULT_OPTIONS, BUILD_HTML_STAGE, BUILD_CSS_STAGE } from "./constants"
 
 const assetsManifest = {}
 
+exports.onCreatePage = ({page, actions}) => {
+    const pageLocale = page.context && page.context.locale || null
+    const localizedPath = page.path
+    const nonLocalizedPath = page.context && page.context.pagePath || null
+    if (nonLocalizedPath && localizedPath) {
+        // if ((nonLocalizedPath).startsWith('/au')) { debugger }
+        actions.createRedirect({
+            fromPath: nonLocalizedPath,
+            toPath: localizedPath,
+            Cookie: [`set_language_${pageLocale}`],
+            statusCode: 200,
+            force: true
+        })
+        if (pageLocale) {
+            actions.createRedirect({
+                fromPath: nonLocalizedPath,
+                toPath: localizedPath,
+                Country: pageLocale,
+                postpone: true,
+                statusCode: 200,
+                force: true
+            })
+        }
+    }
+}
+
 // Inject a webpack plugin to get the file manifests so we can translate all link headers
 exports.onCreateWebpackConfig = ({ actions, stage }) => {
   if (stage !== BUILD_HTML_STAGE && stage !== BUILD_CSS_STAGE) {
