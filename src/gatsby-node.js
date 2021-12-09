@@ -8,22 +8,24 @@ import createRedirects from "./create-redirects"
 import { DEFAULT_OPTIONS, BUILD_HTML_STAGE, BUILD_CSS_STAGE } from "./constants"
 
 const assetsManifest = {}
+let _netlifyRedirects = []
 
 exports.onCreatePage = ({page, actions}) => {
     const pageLocale = page.context && page.context.locale || null
     const localizedPath = page.path
     const nonLocalizedPath = page.context && page.context.pagePath || null
     if (nonLocalizedPath && localizedPath) {
-        // if ((nonLocalizedPath).startsWith('/au')) { debugger }
         actions.createRedirect({
+            isNetlifyRedirect: true,
             fromPath: nonLocalizedPath,
             toPath: localizedPath,
-            Cookie: [`set_language_${pageLocale}`],
+            Cookie: [`set_cake_locale_${pageLocale}`],
             statusCode: 200,
             force: true
         })
         if (pageLocale) {
             actions.createRedirect({
+                isNetlifyRedirect: true,
                 fromPath: nonLocalizedPath,
                 toPath: localizedPath,
                 Country: pageLocale,
@@ -34,6 +36,28 @@ exports.onCreatePage = ({page, actions}) => {
         }
     }
 }
+
+const _cacheInjectedNetlifyRedirects = (store) => {
+    const netlifyRedirects = store.getState().redirects.filter(r => r.isNetlifyRedirect)
+    if (netlifyRedirects.length) {
+        _netlifyRedirects = netlifyRedirects
+        store.getState().redirects = store.getState().redirects.filter(r => !r.isNetlifyRedirect);
+        console.info(`[Netlify Cake Localize] Extracted ${_netlifyRedirects.length} Netlify redirects`);
+    }
+}
+
+const _reinjectNetlifyRedirectsInplace = (redirects) => {
+    if (_netlifyRedirects.length) {
+        console.info(`[Netlify Cake Localize] Injecting ${_netlifyRedirects.length} Netlify redirects`);
+        redirects.push(..._netlifyRedirects)
+        _netlifyRedirects = []
+    }
+}
+
+// this will always happen before the redirects are processed by Gatsby on both DEV and PROD builds
+exports.createPagesStatefully = async ({store}) => _cacheInjectedNetlifyRedirects(store)
+// fallback for PROD if the createPagesStatefully somehow fails
+exports.onPreExtractQueries = ({store}) => _cacheInjectedNetlifyRedirects(store)
 
 // Inject a webpack plugin to get the file manifests so we can translate all link headers
 exports.onCreateWebpackConfig = ({ actions, stage }) => {
@@ -59,6 +83,7 @@ exports.onPostBuild = async (
   const pluginOptions = { ...DEFAULT_OPTIONS, ...userPluginOptions }
 
   const { redirects } = store.getState()
+  _reinjectNetlifyRedirectsInplace(redirects)
 
   let rewrites = []
   if (pluginOptions.generateMatchPathRewrites) {
