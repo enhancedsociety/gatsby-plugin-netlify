@@ -8,7 +8,7 @@ import createRedirects from "./create-redirects"
 import { DEFAULT_OPTIONS, BUILD_HTML_STAGE, BUILD_CSS_STAGE } from "./constants"
 
 const assetsManifest = {}
-const netlifyRedirects = []
+let _netlifyRedirects = []
 
 exports.onCreatePage = ({page, actions}) => {
     const pageLocale = page.context && page.context.locale || null
@@ -37,13 +37,27 @@ exports.onCreatePage = ({page, actions}) => {
     }
 }
 
-exports.onPreExtractQueries = ({store}) => {
-    console.info('Processing Netlify redirects...')
-    netlifyRedirects.push(...store.getState().redirects.filter(r => r.isNetlifyRedirect))
-    // modify the redirects in place
-    store.getState().redirects = store.getState().redirects.filter(r => !r.isNetlifyRedirect)
-    console.info(`Extracted ${netlifyRedirects.length} Netlify redirects!`)
+const _cacheInjectedNetlifyRedirects = (store) => {
+    const netlifyRedirects = store.getState().redirects.filter(r => r.isNetlifyRedirect)
+    if (netlifyRedirects.length) {
+        _netlifyRedirects = netlifyRedirects
+        store.getState().redirects = store.getState().redirects.filter(r => !r.isNetlifyRedirect);
+        console.info(`[Netlify Cake Localize] Extracted ${_netlifyRedirects.length} Netlify redirects`);
+    }
 }
+
+const _reinjectNetlifyRedirectsInplace = (redirects) => {
+    if (_netlifyRedirects.length) {
+        console.info(`[Netlify Cake Localize] Injecting ${_netlifyRedirects.length} Netlify redirects`);
+        redirects.push(..._netlifyRedirects)
+        _netlifyRedirects = []
+    }
+}
+
+// this will always happen before the redirects are processed by Gatsby on both DEV and PROD builds
+exports.createPagesStatefully = async ({store}) => _cacheInjectedNetlifyRedirects(store)
+// fallback for PROD if the createPagesStatefully somehow fails
+exports.onPreExtractQueries = ({store}) => _cacheInjectedNetlifyRedirects(store)
 
 // Inject a webpack plugin to get the file manifests so we can translate all link headers
 exports.onCreateWebpackConfig = ({ actions, stage }) => {
@@ -69,10 +83,7 @@ exports.onPostBuild = async (
   const pluginOptions = { ...DEFAULT_OPTIONS, ...userPluginOptions }
 
   const { redirects } = store.getState()
-  if (netlifyRedirects.length) {
-    console.info(`Injecting ${netlifyRedirects.length} Netlify redirects...`)
-    redirects.push(...netlifyRedirects)
-  }
+  _reinjectNetlifyRedirectsInplace(redirects)
 
   let rewrites = []
   if (pluginOptions.generateMatchPathRewrites) {
