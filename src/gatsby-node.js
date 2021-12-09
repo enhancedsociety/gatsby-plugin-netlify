@@ -8,22 +8,24 @@ import createRedirects from "./create-redirects"
 import { DEFAULT_OPTIONS, BUILD_HTML_STAGE, BUILD_CSS_STAGE } from "./constants"
 
 const assetsManifest = {}
+const netlifyRedirects = []
 
 exports.onCreatePage = ({page, actions}) => {
     const pageLocale = page.context && page.context.locale || null
     const localizedPath = page.path
     const nonLocalizedPath = page.context && page.context.pagePath || null
     if (nonLocalizedPath && localizedPath) {
-        // if ((nonLocalizedPath).startsWith('/au')) { debugger }
         actions.createRedirect({
+            isNetlifyRedirect: true,
             fromPath: nonLocalizedPath,
             toPath: localizedPath,
-            Cookie: [`set_language_${pageLocale}`],
+            Cookie: [`set_cake_locale_${pageLocale}`],
             statusCode: 200,
             force: true
         })
         if (pageLocale) {
             actions.createRedirect({
+                isNetlifyRedirect: true,
                 fromPath: nonLocalizedPath,
                 toPath: localizedPath,
                 Country: pageLocale,
@@ -33,6 +35,14 @@ exports.onCreatePage = ({page, actions}) => {
             })
         }
     }
+}
+
+exports.onPreExtractQueries = ({store}) => {
+    console.info('Processing Netlify redirects...')
+    netlifyRedirects.push(...store.getState().redirects.filter(r => r.isNetlifyRedirect))
+    // modify the redirects in place
+    store.getState().redirects = store.getState().redirects.filter(r => !r.isNetlifyRedirect)
+    console.info(`Extracted ${netlifyRedirects.length} Netlify redirects!`)
 }
 
 // Inject a webpack plugin to get the file manifests so we can translate all link headers
@@ -59,6 +69,10 @@ exports.onPostBuild = async (
   const pluginOptions = { ...DEFAULT_OPTIONS, ...userPluginOptions }
 
   const { redirects } = store.getState()
+  if (netlifyRedirects.length) {
+    console.info(`Injecting ${netlifyRedirects.length} Netlify redirects...`)
+    redirects.push(...netlifyRedirects)
+  }
 
   let rewrites = []
   if (pluginOptions.generateMatchPathRewrites) {
