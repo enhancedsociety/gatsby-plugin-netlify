@@ -63,9 +63,28 @@ export default async function writeRedirectsFile(
     return pieces.join(`  `)
   })
 
-  const postPonedRedirects = buildRedirects(redirects.filter(r => r.postpone))
-  redirects = buildRedirects(redirects.filter(r => !r.postpone))
-  redirects = redirects.concat(postPonedRedirects)
+
+  const sortedPostponed = redirects.filter(r => r.postpone).sort((a,b) => {
+    if (a.fromPath == b.fromPath) {
+      return (a.Country || 'zz') < (b.Country || 'zz') ? -1 : 1
+    }
+    return a.fromPath < b.fromPath ? -1 : 1
+  })
+
+  const cookie_compare_default = 'set_cake_locale_zz'
+  const sortedNonPosponed = redirects.filter(r => !r.postpone).sort((a,b) => {
+    if (a.fromPath == b.fromPath) {
+      const cookieA = (a.Cookie && a.Cookie[0] || cookie_compare_default).replace('null', 'zz')
+      const cookieB = (b.Cookie && b.Cookie[0] || cookie_compare_default).replace('null', 'zz')
+      return cookieA < cookieB ? -1 : 1
+    }
+    return a.fromPath < b.fromPath ? -1 : 1
+  })
+  const postPonedRedirects = buildRedirects(sortedPostponed)
+  redirects = [
+      ...buildRedirects(sortedNonPosponed),
+      ...buildRedirects(sortedPostponed)
+  ]
 
   rewrites = rewrites.map(
     ({ fromPath, toPath }) => `${fromPath}  ${toPath}  200`
