@@ -78,9 +78,18 @@ export default async function writeRedirectsFile(
       const cookieB = (b.Cookie && b.Cookie[0] || cookie_compare_default).replace('null', 'zz')
       return cookieA < cookieB ? -1 : 1
     }
+    const aHasWildcard = a.fromPath.endsWith('/*')
+    if (aHasWildcard || b.fromPath.endsWith('/*')) {
+      const removeLastSlashOnwardsRegex = new RegExp(/[^\/]+\/?$/)
+      const aPathWithoutWildcard = a.fromPath.replace(removeLastSlashOnwardsRegex, '')
+      const bPathWithoutWildcard = b.fromPath.replace(removeLastSlashOnwardsRegex, '')
+      if (aPathWithoutWildcard == bPathWithoutWildcard) {
+        // the path WITHOUT the wildcard needs to go first
+        return aHasWildcard ? 1 : -1
+      }
+    }
     return a.fromPath < b.fromPath ? -1 : 1
   })
-  const postPonedRedirects = buildRedirects(sortedPostponed)
   redirects = [
       ...buildRedirects(sortedNonPosponed),
       ...buildRedirects(sortedPostponed)
