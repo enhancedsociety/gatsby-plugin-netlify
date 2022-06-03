@@ -11,6 +11,56 @@ import createRedirects from './create-redirects'
 import makePluginData from './plugin-data'
 
 const assetsManifest = {}
+let _netlifyRedirects = []
+
+export const onCreatePage = ({ page, actions }: any) => {
+    const pageLocale = page.context && page.context.locale || null
+    const localizedPath = page.path
+    const nonLocalizedPath = page.context && page.context.pagePath || null
+    if (nonLocalizedPath && localizedPath) {
+        actions.createRedirect({
+            isNetlifyRedirect: true,
+            fromPath: nonLocalizedPath,
+            toPath: localizedPath,
+            Cookie: [`set_cake_locale_${pageLocale}`],
+            statusCode: 200,
+            force: true
+        })
+        if (pageLocale) {
+            actions.createRedirect({
+                isNetlifyRedirect: true,
+                fromPath: nonLocalizedPath,
+                toPath: localizedPath,
+                Country: pageLocale,
+                postpone: true,
+                statusCode: 200,
+                force: true
+            })
+        }
+    }
+}
+
+const _cacheInjectedNetlifyRedirects = (store) => {
+    const netlifyRedirects = store.getState().redirects.filter(r => r.isNetlifyRedirect)
+    if (netlifyRedirects.length) {
+        _netlifyRedirects = netlifyRedirects
+        store.getState().redirects = store.getState().redirects.filter(r => !r.isNetlifyRedirect);
+        console.info(`[Netlify Cake Localize] Extracted ${_netlifyRedirects.length} Netlify redirects`);
+    }
+}
+
+const _reinjectNetlifyRedirectsInplace = (redirects) => {
+    if (_netlifyRedirects.length) {
+        console.info(`[Netlify Cake Localize] Injecting ${_netlifyRedirects.length} Netlify redirects`);
+        redirects.push(..._netlifyRedirects)
+        _netlifyRedirects = []
+    }
+}
+
+// this will always happen before the redirects are processed by Gatsby on both DEV and PROD builds
+export const createPagesStatefully = async ({store}) => _cacheInjectedNetlifyRedirects(store)
+// fallback for PROD if the createPagesStatefully somehow fails
+export const onPreExtractQueries = ({store}) => _cacheInjectedNetlifyRedirects(store)
 
 /** @type {import("gatsby").GatsbyNode["pluginOptionsSchema"]} */
 export const pluginOptionsSchema = ({ Joi }: any) => {
@@ -64,6 +114,8 @@ export const onPostBuild = async ({ store, pathPrefix, reporter }: any, userPlug
   const pluginOptions = { ...DEFAULT_OPTIONS, ...userPluginOptions }
 
   const { redirects, pages, functions = [], program } = store.getState()
+  _reinjectNetlifyRedirectsInplace(redirects)
+
   if (pages.size > PAGE_COUNT_WARN && pluginOptions.mergeCachingHeaders ) {
     reporter.warn(
       `[gatsby-plugin-netlify] Your site has ${pages.size} pages, which means that the generated headers file could become very large. Consider disabling "mergeCachingHeaders" in your plugin config`,

@@ -34,11 +34,12 @@ export default async function writeRedirectsFile(pluginData: any, redirects: any
   const NETLIFY_CONDITIONS_ALLOWLIST = new Set([
     `language`,
     `country`,
+    `Cookie`
   ])
 
   // Map redirect data to the format Netlify expects
   // eslint-disable-next-line max-statements
-  redirects = redirects.map((redirect: any) => {
+  const buildRedirects = (redirects) => redirects.map((redirect: any) => {
     const { fromPath, isPermanent, redirectInBrowser, force, toPath, statusCode, ...rest } = redirect
 
     let status = isPermanent ? `301` : `302`
@@ -77,6 +78,37 @@ export default async function writeRedirectsFile(pluginData: any, redirects: any
 
     return pieces.join(`  `)
   })
+
+  const sortedPostponed = redirects.filter(r => r.postpone).sort((a,b) => {
+    if (a.fromPath == b.fromPath) {
+      return (a.Country || 'zz') < (b.Country || 'zz') ? -1 : 1
+    }
+    return a.fromPath < b.fromPath ? -1 : 1
+  })
+
+  const cookie_compare_default = 'set_cake_locale_zz'
+  const sortedNonPosponed = redirects.filter(r => !r.postpone).sort((a,b) => {
+    if (a.fromPath == b.fromPath) {
+      const cookieA = (a.Cookie && a.Cookie[0] || cookie_compare_default).replace('null', 'zz')
+      const cookieB = (b.Cookie && b.Cookie[0] || cookie_compare_default).replace('null', 'zz')
+      return cookieA < cookieB ? -1 : 1
+    }
+    const aHasWildcard = a.fromPath.endsWith('/*')
+    if (aHasWildcard || b.fromPath.endsWith('/*')) {
+      const removeLastSlashOnwardsRegex = new RegExp(/[^\/]+\/?$/)
+      const aPathWithoutWildcard = a.fromPath.replace(removeLastSlashOnwardsRegex, '')
+      const bPathWithoutWildcard = b.fromPath.replace(removeLastSlashOnwardsRegex, '')
+      if (aPathWithoutWildcard == bPathWithoutWildcard) {
+        // the path WITHOUT the wildcard needs to go first
+        return aHasWildcard ? 1 : -1
+      }
+    }
+    return a.fromPath < b.fromPath ? -1 : 1
+  })
+  redirects = [
+      ...buildRedirects(sortedNonPosponed),
+      ...buildRedirects(sortedPostponed)
+  ]
 
   rewrites = rewrites.map(({ fromPath, toPath }: any) => `${fromPath}  ${toPath}  200`)
 
