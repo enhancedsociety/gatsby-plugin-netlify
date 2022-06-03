@@ -22,7 +22,9 @@ export const onCreatePage = ({ page, actions }: any) => {
             isNetlifyRedirect: true,
             fromPath: nonLocalizedPath,
             toPath: localizedPath,
-            Cookie: [`set_cake_locale_${pageLocale}`],
+            conditions: {
+              cookie: [`set_cake_locale_${pageLocale}`]
+            },
             statusCode: 200,
             force: true
         })
@@ -31,7 +33,9 @@ export const onCreatePage = ({ page, actions }: any) => {
                 isNetlifyRedirect: true,
                 fromPath: nonLocalizedPath,
                 toPath: localizedPath,
-                Country: pageLocale,
+                conditions: {
+                  country: pageLocale
+                },
                 postpone: true,
                 statusCode: 200,
                 force: true

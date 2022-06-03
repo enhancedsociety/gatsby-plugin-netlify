@@ -34,7 +34,7 @@ export default async function writeRedirectsFile(pluginData: any, redirects: any
   const NETLIFY_CONDITIONS_ALLOWLIST = new Set([
     `language`,
     `country`,
-    `Cookie`
+    `cookie`
   ])
 
   // Map redirect data to the format Netlify expects
@@ -81,7 +81,7 @@ export default async function writeRedirectsFile(pluginData: any, redirects: any
 
   const sortedPostponed = redirects.filter(r => r.postpone).sort((a,b) => {
     if (a.fromPath == b.fromPath) {
-      return (a.Country || 'zz') < (b.Country || 'zz') ? -1 : 1
+      return (a.conditions && a.conditions.country || 'zz') < (b.conditions && b.conditions.country || 'zz') ? -1 : 1;
     }
     return a.fromPath < b.fromPath ? -1 : 1
   })
@@ -89,8 +89,8 @@ export default async function writeRedirectsFile(pluginData: any, redirects: any
   const cookie_compare_default = 'set_cake_locale_zz'
   const sortedNonPosponed = redirects.filter(r => !r.postpone).sort((a,b) => {
     if (a.fromPath == b.fromPath) {
-      const cookieA = (a.Cookie && a.Cookie[0] || cookie_compare_default).replace('null', 'zz')
-      const cookieB = (b.Cookie && b.Cookie[0] || cookie_compare_default).replace('null', 'zz')
+      const cookieA = (a.conditions && a.conditions.cookie && a.conditions.cookie[0] || cookie_compare_default).replace('null', 'zz');
+      const cookieB = (b.conditions && b.conditions.cookie && b.conditions.cookie[0] || cookie_compare_default).replace('null', 'zz');
       return cookieA < cookieB ? -1 : 1
     }
     const aHasWildcard = a.fromPath.endsWith('/*')
