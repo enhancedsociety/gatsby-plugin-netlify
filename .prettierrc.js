@@ -1,4 +1,6 @@
+const rules = require('@netlify/eslint-config-node/.prettierrc.json')
+
 module.exports = {
-  arrowParens: `avoid`,
-  semi: false,
+  ...rules,
+  endOfLine: 'auto',
 }
